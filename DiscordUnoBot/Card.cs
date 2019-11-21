@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace DiscordUnoBot
+﻿namespace DiscordUnoBot
 {
     public class Card : Helper
     {

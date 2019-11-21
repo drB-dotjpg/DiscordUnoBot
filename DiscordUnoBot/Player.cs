@@ -1,7 +1,5 @@
 ﻿using Discord.WebSocket;
-using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace DiscordUnoBot
 {
@@ -16,5 +14,15 @@ namespace DiscordUnoBot
             thisUser = user;
             name = user.Username;
         }
+
+		void DrawCard()
+		{
+			Cards.Add(GenerateCard());
+		}
+
+		void PlayCard(Card card)
+		{
+			Game.lastPlayedCard = card;
+		}
     }
 }

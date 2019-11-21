@@ -1,11 +1,4 @@
-﻿using Discord;
-using Discord.Commands;
-using Discord.WebSocket;
-using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading.Tasks;
+﻿using System;
 
 namespace DiscordUnoBot
 {
@@ -16,5 +9,12 @@ namespace DiscordUnoBot
         public enum CardColor { Red, Blue, Yellow, Green, All }
         public enum CardType { Number, Skip, DrawTwo, Reverse, Wild, WildDrawFour }
 
+        public Card GenerateCard()
+        {
+            Random rand = new Random();
+            CardType type = (CardType)rand.Next(0, 6);
+            CardColor color = (int)type >= 4 ? CardColor.All : (CardColor)rand.Next(0, 4);
+            return new Card(color, type);
+        }
     }
 }
