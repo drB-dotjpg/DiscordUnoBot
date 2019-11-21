@@ -12,13 +12,49 @@ namespace DiscordUnoBot
         public Card GenerateCard(bool numberOnly = false)
         {
             Random rand = new Random();
+
+            if (!numberOnly && rand.Next(10) < 7)
+            {
+                numberOnly = true;
+            }
+
             CardType type = !numberOnly ? (CardType)rand.Next(0, 6) : CardType.Number;
-            CardColor color = (CardColor)rand.Next(0, 4);
+            CardColor color = (int)type < 4 ? (CardColor)rand.Next(0, 4) : CardColor.Any;
+
             if (type == CardType.Number)
             {
                 return new Card(color, type, rand.Next(0, 10));
             }
+
             return new Card(color, type);
+        }
+
+        public string CardToString(Card card)
+        {
+            string output = "";
+
+            if (card.color == CardColor.Any)
+            {
+                output = card.type.ToString();
+            }
+            else if (card.type == CardType.Number)
+            {
+                output = card.color.ToString() + " " + card.value;
+            }
+            else
+            {
+                output = card.color.ToString() + " " + card.type.ToString();
+            }
+
+            for (int i = 1; i < output.Length; i++)
+            {
+                if (char.IsUpper(output.ToCharArray()[i]))
+                {
+                    output.Insert(i, " ");
+                }
+            }
+
+            return output;
         }
     }
 }
