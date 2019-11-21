@@ -76,12 +76,6 @@ namespace DiscordUnoBot
             }
         }
 
-        Task OnReady()
-        {
-            loggedIn = true;
-            return Task.CompletedTask;
-        }
-
         async Task PreGame()
         {
             var messages = await channel.GetMessagesAsync().FlattenAsync();
@@ -90,15 +84,23 @@ namespace DiscordUnoBot
             int minutes = 3;
             int seconds = 8;
 
-            const string messageContent = "DM to join bideo gam";
+            const string messageContent = "**DM to join bideo gam**";
             var message = await channel.SendMessageAsync(messageContent);
 
             do
             {
-                string time = $"{minutes.ToString("00")}:{seconds.ToString("00")}";
-                await message.ModifyAsync(x => x.Content = $"{messageContent}\n\n`{time}`");
+                bool twoOrMore = players.Count >= 2;
 
-                /*if (players.Count >= 2)*/ seconds--;
+                string time = twoOrMore ? $"`{minutes.ToString("00")}:{seconds.ToString("00")}`" : "`Waiting for two or more players`";
+
+                string playersDisplay = "";
+                foreach (Player player in players) playersDisplay += "`" + player.name + "` ";
+                playersDisplay = players.Count != 0 ? playersDisplay.Trim() : "`No players`";
+
+                await message.ModifyAsync(x => x.Content = $"{messageContent}\nTime remaining: {time}\nPlayers: {playersDisplay}");
+
+                //if (twoOrMore)
+                    seconds--;
                 if (seconds < 0 && minutes > 0)
                 {
                     minutes--;
@@ -108,19 +110,39 @@ namespace DiscordUnoBot
             } while (seconds > 0);
         }
 
-        Task MessageReceived(SocketMessage arg)
+        async Task MessageReceived(SocketMessage arg)
         {
-            if (arg.Channel is SocketDMChannel && !arg.Author.IsBot && phase == Phase.Pregame)
+            if (arg.Channel is SocketDMChannel && !arg.Author.IsBot)
             {
-                players.Add(new Player(arg.Author));
+                if (phase == Phase.Pregame)
+                {
+                    if (!IsPlayerInGame(arg.Author))
+                    {
+                        players.Add(new Player(arg.Author));
+                        var DM = await arg.Author.GetOrCreateDMChannelAsync() as SocketDMChannel;
+                        await DM.SendMessageAsync("You have joined this round of UNO!");
+                    }
+                }
             }
+        }
 
-            return Task.CompletedTask;
+        bool IsPlayerInGame(SocketUser user)
+        {
+            foreach (Player player in players)
+                if (player.thisUser == user)
+                    return true;
+            return false;
         }
 
         Task Log(LogMessage arg)
         {
             Console.WriteLine(arg);
+            return Task.CompletedTask;
+        }
+
+        Task OnReady()
+        {
+            loggedIn = true;
             return Task.CompletedTask;
         }
     }
