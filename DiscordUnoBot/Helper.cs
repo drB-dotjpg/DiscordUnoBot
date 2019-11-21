@@ -9,10 +9,10 @@ namespace DiscordUnoBot
         public enum CardColor { Red, Blue, Yellow, Green, Any }
         public enum CardType { Number, Skip, DrawTwo, Reverse, Wild, WildDrawFour }
 
-        public Card GenerateCard()
+        public Card GenerateCard(bool numberOnly = false)
         {
             Random rand = new Random();
-            CardType type = (CardType)rand.Next(0, 6);
+            CardType type = !numberOnly ? (CardType)rand.Next(0, 6) : CardType.Number;
             CardColor color = (CardColor)rand.Next(0, 4);
             if (type == CardType.Number)
             {

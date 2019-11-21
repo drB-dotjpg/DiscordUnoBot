@@ -110,16 +110,24 @@ namespace DiscordUnoBot
                 await Task.Delay(1000);
             } while (seconds > 0);
 
+            foreach(Player player in players)
+            {
+                for (int i = 0; i < 6; i++)
+                {
+                    player.Cards.Add(GenerateCard());
+                }
+            }
+
             await InGame();
         }
 
         async Task InGame()
         {
             phase = Phase.Ingame;
-
+            
             do
             {
-                lastCard = GenerateCard();
+                lastCard = GenerateCard(true);
             } while (lastCard.type != CardType.Number);
 
             await SendTurnsToPlayers();
@@ -130,7 +138,7 @@ namespace DiscordUnoBot
             foreach (Player player in players)
             {
                 EmbedBuilder builder = new EmbedBuilder();
-                builder.WithTitle(turn.ToString());
+                builder.WithTitle("Turn " + turn.ToString());
 
                 switch (lastCard.color)
                 {
@@ -144,7 +152,8 @@ namespace DiscordUnoBot
                         builder.WithColor(Color.Green); break;
                 }
 
-                string cardContent = lastCard.type == CardType.Number ? lastCard.value.ToString() : lastCard.type.ToString();
+                string cardContent = lastCard.color.ToString() + " ";
+                cardContent += lastCard.type == CardType.Number ? lastCard.value.ToString() : lastCard.type.ToString();
 
                 builder.AddField("CURRENT CARD", cardContent);
 
@@ -155,18 +164,20 @@ namespace DiscordUnoBot
                     builder.AddField(otherPlayer.name, $"Cards: {otherPlayer.Cards.Count}", true);
                 }
 
-                int index = 0;
+                int index = 1;
                 string hand = "";
                 foreach (Card card in player.Cards)
                 {
                     hand += $"**{index}**: ";
                     hand += (card.color != CardColor.Any ? card.color.ToString() : "") + " ";
                     hand += (card.type != CardType.Number ? card.type.ToString() : card.value.ToString()) + " ";
+                    hand += "\n";
+                    index++;
                 }
 
                 builder.AddField("Your hand", hand);
 
-                await (await player.thisUser.GetOrCreateDMChannelAsync() as SocketDMChannel).SendMessageAsync(embed: builder.Build());
+                await (await player.thisUser.GetOrCreateDMChannelAsync() as SocketDMChannel).SendMessageAsync(null, false, builder.Build());
             }
         }
 
