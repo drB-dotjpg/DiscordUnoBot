@@ -71,10 +71,7 @@ namespace DiscordUnoBot
             server = _client.GetGuild(ulong.Parse(loginInfo[1]));
             channel = server.Channels.FirstOrDefault(x => x.Name == "uno") as SocketTextChannel;
 
-            while (true)
-            {
-                await PreGame();
-            }
+            await PreGame();
         }
 
         async Task PreGame()
@@ -110,7 +107,7 @@ namespace DiscordUnoBot
                 await Task.Delay(1000);
             } while (seconds > 0);
 
-            foreach(Player player in players)
+            foreach (Player player in players)
             {
                 for (int i = 0; i < 6; i++)
                 {
@@ -124,11 +121,7 @@ namespace DiscordUnoBot
         async Task InGame()
         {
             phase = Phase.Ingame;
-            
-            do
-            {
-                lastCard = GenerateCard(true);
-            } while (lastCard.type != CardType.Number);
+            lastCard = GenerateCard(true);
 
 			if(turn == 1)
 			{
@@ -165,10 +158,7 @@ namespace DiscordUnoBot
                         builder.WithColor(Color.Green); break;
                 }
 
-                string cardContent = lastCard.color.ToString() + " ";
-                cardContent += lastCard.type == CardType.Number ? lastCard.value.ToString() : lastCard.type.ToString();
-
-                builder.AddField("CURRENT CARD", cardContent);
+                builder.AddField("CURRENT CARD", CardToString(lastCard));
 
                 foreach (Player otherPlayer in players)
                 {
@@ -181,10 +171,7 @@ namespace DiscordUnoBot
                 string hand = "";
                 foreach (Card card in player.Cards)
                 {
-                    hand += $"**{index}**: ";
-                    hand += (card.color != CardColor.Any ? card.color.ToString() : "") + " ";
-                    hand += (card.type != CardType.Number ? card.type.ToString() : card.value.ToString()) + " ";
-                    hand += "\n";
+                    hand += $"*{index}* : {CardToString(card)}\n";
                     index++;
                 }
 
