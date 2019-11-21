@@ -24,12 +24,12 @@ namespace DiscordUnoBot
         IServiceProvider _services;
 
         public static Card lastPlayedCard;
+        bool loggedIn = false;
 
         List<Player> players = new List<Player>();
 
         async Task Login()
         {
-        login:
 
             _client = new DiscordSocketClient();
             _commands = new CommandService();
@@ -37,6 +37,7 @@ namespace DiscordUnoBot
 
             _client.Log += Log;
             _client.MessageReceived += MessageReceived;
+            _client.Ready += OnReady;
 
             if (!File.Exists("data.txt"))
             {
@@ -57,11 +58,12 @@ namespace DiscordUnoBot
             {
                 await _client.LoginAsync(TokenType.Bot, loginInfo[0]);
                 await _client.StartAsync();
+                while (!loggedIn) await Task.Delay(100);
             }
             catch (Exception)
             {
                 File.Delete("data.txt");
-                goto login;
+                await Login();
             }
 
             phase = Phase.Pregame;
@@ -74,20 +76,36 @@ namespace DiscordUnoBot
             }
         }
 
+        Task OnReady()
+        {
+            loggedIn = true;
+            return Task.CompletedTask;
+        }
+
         async Task PreGame()
         {
             var messages = await channel.GetMessagesAsync().FlattenAsync();
             await channel.DeleteMessagesAsync(messages);
 
+            int minutes = 3;
             int seconds = 8;
-            var message = channel.SendMessageAsync("DM to join bideo gam");
+
+            const string messageContent = "DM to join bideo gam";
+            var message = await channel.SendMessageAsync(messageContent);
 
             do
             {
+                string time = $"{minutes.ToString("00")}:{seconds.ToString("00")}";
+                await message.ModifyAsync(x => x.Content = $"{messageContent}\n\n`{time}`");
 
-
-                seconds--;
-            } while (seconds > 0 || players.Count <= 1);
+                /*if (players.Count >= 2)*/ seconds--;
+                if (seconds < 0 && minutes > 0)
+                {
+                    minutes--;
+                    seconds += 59;
+                }
+                await Task.Delay(1000);
+            } while (seconds > 0);
         }
 
         Task MessageReceived(SocketMessage arg)
