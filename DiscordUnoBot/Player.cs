@@ -22,7 +22,7 @@ namespace DiscordUnoBot
 
 		void PlayCard(Card card)
 		{
-			Game.lastPlayedCard = card;
+			Game.lastCard = card;
 		}
     }
 }

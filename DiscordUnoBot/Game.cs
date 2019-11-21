@@ -23,8 +23,9 @@ namespace DiscordUnoBot
         CommandService _commands;
         IServiceProvider _services;
 
-        public static Card lastPlayedCard;
+        public static Card lastCard;
         bool loggedIn = false;
+        int turn = 1;
 
         List<Player> players = new List<Player>();
 
@@ -68,7 +69,7 @@ namespace DiscordUnoBot
 
             phase = Phase.Pregame;
             server = _client.GetGuild(ulong.Parse(loginInfo[1]));
-			channel = server.Channels.FirstOrDefault(x => x.Name == "uno") as SocketTextChannel;
+            channel = server.Channels.FirstOrDefault(x => x.Name == "uno") as SocketTextChannel;
 
             while (true)
             {
@@ -81,7 +82,7 @@ namespace DiscordUnoBot
             var messages = await channel.GetMessagesAsync().FlattenAsync();
             await channel.DeleteMessagesAsync(messages);
 
-            int minutes = 3;
+            int minutes = 0;
             int seconds = 8;
 
             const string messageContent = "**DM to join bideo gam**";
@@ -100,7 +101,7 @@ namespace DiscordUnoBot
                 await message.ModifyAsync(x => x.Content = $"{messageContent}\nTime remaining: {time}\nPlayers: {playersDisplay}");
 
                 //if (twoOrMore)
-                    seconds--;
+                seconds--;
                 if (seconds < 0 && minutes > 0)
                 {
                     minutes--;
@@ -108,20 +109,85 @@ namespace DiscordUnoBot
                 }
                 await Task.Delay(1000);
             } while (seconds > 0);
+
+            await InGame();
+        }
+
+        async Task InGame()
+        {
+            phase = Phase.Ingame;
+
+            do
+            {
+                lastCard = GenerateCard();
+            } while (lastCard.type != CardType.Number);
+
+            await SendTurnsToPlayers();
+        }
+
+        async Task SendTurnsToPlayers()
+        {
+            foreach (Player player in players)
+            {
+                EmbedBuilder builder = new EmbedBuilder();
+                builder.WithTitle(turn.ToString());
+
+                switch (lastCard.color)
+                {
+                    case CardColor.Red:
+                        builder.WithColor(Color.Red); break;
+                    case CardColor.Blue:
+                        builder.WithColor(Color.Blue); break;
+                    case CardColor.Yellow:
+                        builder.WithColor(Color.Gold); break;
+                    case CardColor.Green:
+                        builder.WithColor(Color.Green); break;
+                }
+
+                string cardContent = lastCard.type == CardType.Number ? lastCard.value.ToString() : lastCard.type.ToString();
+
+                builder.AddField("CURRENT CARD", cardContent);
+
+                foreach (Player otherPlayer in players)
+                {
+                    if (otherPlayer.Equals(player)) continue;
+
+                    builder.AddField(otherPlayer.name, $"Cards: {otherPlayer.Cards.Count}", true);
+                }
+
+                int index = 0;
+                string hand = "";
+                foreach (Card card in player.Cards)
+                {
+                    hand += $"**{index}**: ";
+                    hand += (card.color != CardColor.Any ? card.color.ToString() : "") + " ";
+                    hand += (card.type != CardType.Number ? card.type.ToString() : card.value.ToString()) + " ";
+                }
+
+                builder.AddField("Your hand", hand);
+
+                await (await player.thisUser.GetOrCreateDMChannelAsync() as SocketDMChannel).SendMessageAsync(embed: builder.Build());
+            }
         }
 
         async Task MessageReceived(SocketMessage arg)
         {
             if (arg.Channel is SocketDMChannel && !arg.Author.IsBot)
             {
-                if (phase == Phase.Pregame)
+                switch (phase)
                 {
-                    if (!IsPlayerInGame(arg.Author))
-                    {
-                        players.Add(new Player(arg.Author));
-                        var DM = await arg.Author.GetOrCreateDMChannelAsync() as SocketDMChannel;
-                        await DM.SendMessageAsync("You have joined this round of UNO!");
-                    }
+                    case Phase.Pregame:
+                        if (!IsPlayerInGame(arg.Author))
+                        {
+                            players.Add(new Player(arg.Author));
+                            var DM = await arg.Author.GetOrCreateDMChannelAsync() as SocketDMChannel;
+                            await DM.SendMessageAsync("You have joined this round of UNO!");
+                        }
+                        break;
+
+                    case Phase.Ingame:
+
+                        break;
                 }
             }
         }
