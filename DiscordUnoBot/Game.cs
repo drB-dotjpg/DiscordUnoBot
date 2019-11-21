@@ -130,7 +130,20 @@ namespace DiscordUnoBot
                 lastCard = GenerateCard(true);
             } while (lastCard.type != CardType.Number);
 
-            await SendTurnsToPlayers();
+			if(turn == 1)
+			{
+				await SendTurnsToPlayers();
+			}
+			else
+			{
+				if (HaveAllPlayersPlayed())
+				{
+					await SendTurnsToPlayers();
+				}
+			}
+
+			
+
         }
 
         async Task SendTurnsToPlayers()
@@ -197,8 +210,15 @@ namespace DiscordUnoBot
                         break;
 
                     case Phase.Ingame:
+						if (arg.Content.StartsWith("play"))
+						{
 
-                        break;
+						}
+						if (arg.Content.StartsWith("draw"))
+						{
+
+						}
+						break;
                 }
             }
         }
@@ -210,6 +230,20 @@ namespace DiscordUnoBot
                     return true;
             return false;
         }
+
+		bool HaveAllPlayersPlayed()
+		{
+			bool allTurnsOver = true;
+			foreach (Player player in players)
+			{
+				if (!player.hasPlayedCardThisTurn)
+				{
+					allTurnsOver = false;
+				}
+			}
+
+			return allTurnsOver;
+		}
 
         Task Log(LogMessage arg)
         {
