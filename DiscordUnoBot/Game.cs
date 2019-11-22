@@ -33,6 +33,8 @@ namespace DiscordUnoBot
         int turnMultiplier = 1;
         int drawMultiplier = 0;
 
+		Player winningPlayer;
+
         bool nextTurnFlag = false;
 
         int timeForTurn = 60; //Seconds to play/draw until your turn is skipped and you are forced to draw a card
@@ -157,6 +159,13 @@ namespace DiscordUnoBot
                 if (!nextTurnFlag)
                     await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), "You ran out of time!", "Starting next turn");
 
+				if(GetCurrentTurnOrderPlayer().Cards.Count == 0)
+				{
+					await PostGame();
+					winningPlayer = GetCurrentTurnOrderPlayer();
+					break;
+				}
+
                 StartNextTurn();
 
                 turnMultiplier = 1;
@@ -165,16 +174,37 @@ namespace DiscordUnoBot
             }
         }
 
+		async Task PostGame()
+		{
+			phase = Phase.PostGame;
+
+			foreach (Player player in players)
+			{
+				if (player == winningPlayer)
+				{
+					await AlertPlayerAsync(player, "You have won! The game is now over.");
+				}
+				else
+				{
+					await AlertPlayerAsync(player, $"{winningPlayer.name} has won the game! The game is now over.");
+				}
+			}
+
+			Restart();
+
+			await PreGame();
+		}
+
         async Task SendTurnsToPlayersAsync()
         {
             foreach (Player player in players)
             {
-                EmbedBuilder builder = GetTurnBreifing(player);
+                EmbedBuilder builder = GetTurnBriefing(player);
                 await (await player.thisUser.GetOrCreateDMChannelAsync() as SocketDMChannel).SendMessageAsync(null, false, builder.Build());
             }
         }
 
-        EmbedBuilder GetTurnBreifing(Player player, bool withCurrentCard = true, bool withOtherPlayers = true, bool withYourHand = true)
+        EmbedBuilder GetTurnBriefing(Player player, bool withCurrentCard = true, bool withOtherPlayers = true, bool withYourHand = true)
         {
             EmbedBuilder builder = new EmbedBuilder();
             builder.WithTitle("Turn " + turn.ToString());
@@ -272,7 +302,7 @@ namespace DiscordUnoBot
                                 }
 
                                 await AlertPlayerAsync(user, $"You drew a {cardNames}.", playableAlert);
-                                await DM.SendMessageAsync(null, false, GetTurnBreifing(GetCurrentTurnOrderPlayer(), true, false).Build());
+                                await DM.SendMessageAsync(null, false, GetTurnBriefing(GetCurrentTurnOrderPlayer(), true, false).Build());
 
                                 foreach (Player player in players)
                                 {
@@ -286,6 +316,8 @@ namespace DiscordUnoBot
                             await DM.SendMessageAsync("Its not your turn yet!");
                         }
                         break;
+					case Phase.PostGame:
+						break;
                 }
             }
         }
@@ -491,6 +523,21 @@ namespace DiscordUnoBot
             turnMultiplier = 1;
             nextTurnFlag = true;
         }
+
+		void Restart()
+		{
+			turn = 1; 
+			playerTurnIndex = 0;
+			reverse = false;
+			turnMultiplier = 1;
+			drawMultiplier = 0;
+
+			nextTurnFlag = false;
+
+			players.Clear();
+
+			lastCard = null;
+		}
 
         Task Log(LogMessage arg)
         {
