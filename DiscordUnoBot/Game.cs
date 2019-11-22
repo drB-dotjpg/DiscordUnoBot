@@ -23,9 +23,15 @@ namespace DiscordUnoBot
         CommandService _commands;
         IServiceProvider _services;
 
-        public static Card lastCard;
+        public static Card lastCard; //the card at the top of the stack
+
         bool loggedIn = false;
-        int turn = 1;
+
+        int turn = 1; //game turn number
+
+		int playerTurnIndex = 0;
+
+		int timeForTurn = 30; //Seconds to play/draw until your turn is skipped and you are forced to draw a card
 
         List<Player> players = new List<Player>();
 
@@ -115,6 +121,7 @@ namespace DiscordUnoBot
                 }
             }
 
+			Shuffle(players);
             await InGame();
         }
 
@@ -122,21 +129,33 @@ namespace DiscordUnoBot
         {
             phase = Phase.Ingame;
             lastCard = GenerateCard(true);
-
-			if(turn == 1)
-			{
-				await SendTurnsToPlayers();
-			}
-			else
+			await SendTurnsToPlayers();
+			while (true)
 			{
 				if (HaveAllPlayersPlayed())
 				{
+					foreach(Player player in players)
+					{
+						player.hasGoneThisTurn = false;
+						playerTurnIndex = 0;
+					}
+					turn++;
 					await SendTurnsToPlayers();
 				}
+				while (playerTurnIndex != players.Count)
+				{
+					await AlertPlayerTurn(GetCurrentTurnOrderPlayer());
+
+					int turnTimer = 0;
+					while (!GetCurrentTurnOrderPlayer().hasGoneThisTurn && turnTimer < timeForTurn)
+					{
+						await Task.Delay(1000);
+						turnTimer++;
+					}
+					playerTurnIndex++;
+				}
 			}
-
 			
-
         }
 
         async Task SendTurnsToPlayers()
@@ -199,11 +218,12 @@ namespace DiscordUnoBot
                     case Phase.Ingame:
 						if (arg.Content.StartsWith("play"))
 						{
-
+							//figure out later
 						}
 						if (arg.Content.StartsWith("draw"))
 						{
-
+							GetCurrentTurnOrderPlayer().DrawCard();
+							GetCurrentTurnOrderPlayer().hasGoneThisTurn = true;
 						}
 						break;
                 }
@@ -223,13 +243,26 @@ namespace DiscordUnoBot
 			bool allTurnsOver = true;
 			foreach (Player player in players)
 			{
-				if (!player.hasPlayedCardThisTurn)
+				if (!player.hasGoneThisTurn)
 				{
 					allTurnsOver = false;
 				}
 			}
 
 			return allTurnsOver;
+		}
+
+		Player GetCurrentTurnOrderPlayer()
+		{
+			return players[playerTurnIndex];
+		}
+
+		async Task AlertPlayerTurn(Player player)
+		{
+			EmbedBuilder builder = new EmbedBuilder();
+			builder.AddField("Your Turn", "It's your turn! Select a card to play or draw a card.", true);
+			builder.WithColor(Color.Teal);
+			await (await player.thisUser.GetOrCreateDMChannelAsync() as SocketDMChannel).SendMessageAsync("", false, builder.Build());
 		}
 
         Task Log(LogMessage arg)
