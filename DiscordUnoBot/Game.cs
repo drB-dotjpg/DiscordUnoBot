@@ -30,6 +30,7 @@ namespace DiscordUnoBot
         int turn = 1; //game turn number
         int playerTurnIndex = 0;
         bool reverse = false;
+        int turnMultiplier = 1;
 
         bool nextTurnFlag = false;
 
@@ -207,7 +208,9 @@ namespace DiscordUnoBot
                 string hand = "";
                 foreach (Card card in player.Cards)
                 {
-                    hand += $"*{index}* : {CardToString(card)}\n";
+                    hand += IsCardCompatable(card)
+                        ? $"***{index}*** : **{CardToString(card)}**\n"
+                        : $"*{index}* : {CardToString(card)}\n";
                     index++;
                 }
 
@@ -239,43 +242,16 @@ namespace DiscordUnoBot
 
                             if (arg.Content.StartsWith("play"))
                             {
-                                //if the number isn't a number or it out of range goto else statement
-                                if (int.TryParse(arg.Content.Split().Last(), out int index) && index > 0 && index < user.Cards.Count)
-                                {
-                                    index--;
-
-                                    Card pickedCard = user.Cards[index];
-
-                                    if (!IsCardCompatable(pickedCard))
-                                    {
-                                        await AlertPlayerAsync(user, "Invalid card!", "Card must be the same color, type, or number");
-                                        break;
-                                    }
-
-                                    lastCard = pickedCard;
-                                    int cardCount = user.Cards.Count - 1;
-
-                                    foreach (Player player in players)
-                                    {
-                                        await AlertPlayerAsync(player, $"{user.name} played a {CardToString(pickedCard)}", $"{user.name} now has {cardCount} cards.");
-                                        if (user == player)
-                                        {
-                                            player.Cards.RemoveAt(index);
-                                        }
-                                    }
-                                    nextTurnFlag = true;
-                                }
-                                else
-                                {
-                                    await AlertPlayerAsync(user, "Invalid choice");
-                                }
+                                await HandleCardPlay(arg, user);
                             }
 
                             if (arg.Content.StartsWith("draw"))
                             {
                                 Card drewCard = GetCurrentTurnOrderPlayer().DrawCard();
 
-                                await AlertPlayerAsync(user, $"You drew a {CardToString(drewCard)}.");
+                                string playableAlert = IsCardCompatable(drewCard) ? "You can play this card." : null;
+
+                                await AlertPlayerAsync(user, $"You drew a {CardToString(drewCard)}.", playableAlert);
                                 await DM.SendMessageAsync(null, false, GetTurnBreifing(GetCurrentTurnOrderPlayer(), true, false).Build());
 
                                 foreach(Player player in players)
@@ -294,6 +270,102 @@ namespace DiscordUnoBot
             }
         }
 
+        async Task HandleCardPlay(SocketMessage arg, Player user)
+        {
+            //if the number isn't a number or it out of range goto else statement
+            if (int.TryParse(arg.Content.Split()[1], out int index) && index > 0 && index < user.Cards.Count + 1)
+            {
+                index--;
+
+                Card pickedCard = user.Cards[index];
+
+                if (!IsCardCompatable(pickedCard))
+                {
+                    await AlertPlayerAsync(user, "Invalid card!", "Card must be the same color, type, or number");
+                    return;
+                }
+                else if (pickedCard.type == CardType.Wild || pickedCard.type == CardType.WildDrawFour)
+                {
+                    bool validColor = false;
+                    string[] colors = { "red", "blue", "yellow", "green" };
+                    foreach (string color in colors)
+                    {
+                        try
+                        {
+                            if (arg.Content.Split()[2] == color)
+                            {
+                                validColor = true;
+                                break;
+                            }
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+                            break;
+                        }
+                    }
+                    if (!validColor)
+                    {
+                        await AlertPlayerAsync(user, "Invalid wild color!", "Enter the name of color at the end of your message!");
+                        return;
+                    }
+                }
+
+                switch (pickedCard.type)
+                {
+                    case CardType.Reverse:
+                        reverse = !reverse;
+                        break;
+
+                    case CardType.Skip:
+                        turnMultiplier++;
+                        break;
+
+                    case CardType.Wild:
+                        pickedCard = new Card(GetColorFromString(arg.Content.Split()[2].ToLower()), pickedCard.type, pickedCard.value);
+                        break;
+
+                    case CardType.WildDrawFour:
+                        goto case CardType.Wild;
+                }
+
+                lastCard = pickedCard;
+                int cardCount = user.Cards.Count - 1;
+
+                foreach (Player player in players)
+                {
+                    await AlertPlayerAsync(player, $"{user.name} played a {CardToString(pickedCard)}", $"{user.name} now has {cardCount} cards.");
+                    if (user == player)
+                    {
+                        player.Cards.RemoveAt(index);
+                    }
+                }
+                nextTurnFlag = true;
+            }
+            else
+            {
+                await AlertPlayerAsync(user, "Invalid choice");
+            }
+        }
+
+        CardColor GetColorFromString(string color)
+        {
+            switch (color)
+            {
+                case "red":
+                    return CardColor.Red;
+
+                case "blue":
+                    return CardColor.Blue;
+
+                case "yellow":
+                    return CardColor.Yellow;
+
+                case "green":
+                    return CardColor.Green;
+            }
+            return CardColor.Any;
+        }
+
         bool IsCardCompatable(Card card)
         {
             if (card.color == CardColor.Any || card.color == lastCard.color) //check colors
@@ -304,7 +376,7 @@ namespace DiscordUnoBot
             {
                 return true;
             }
-            else if (card.type == CardType.Number && card.value == lastCard.value)
+            else if (card.type == CardType.Number && card.value == lastCard.value && card.value != 0) //check numbers
             {
                 return true;
             }
@@ -317,19 +389,6 @@ namespace DiscordUnoBot
                 if (player.thisUser == user)
                     return true;
             return false;
-        }
-
-        bool HaveAllPlayersPlayed() //not needed?????
-        {
-            foreach (Player player in players)
-            {
-                if (!player.hasGoneThisTurn)
-                {
-                    return false;
-                }
-            }
-
-            return true;
         }
 
         Player GetCurrentTurnOrderPlayer()
@@ -366,17 +425,23 @@ namespace DiscordUnoBot
 
         void StartNextTurn()
         {
-            playerTurnIndex += !reverse ? 1 : -1;
-
-            if (playerTurnIndex > players.Count - 1)
+            while (turnMultiplier > 0) //accounts for skips
             {
-                playerTurnIndex = 0;
-            }
-            else if (playerTurnIndex < 0)
-            {
-                playerTurnIndex = players.Count - 1;
+                playerTurnIndex += !reverse ? 1 : -1;
+
+                if (playerTurnIndex > players.Count - 1)
+                {
+                    playerTurnIndex = 0;
+                }
+                else if (playerTurnIndex < 0)
+                {
+                    playerTurnIndex = players.Count - 1;
+                }
+
+                turnMultiplier--;
             }
 
+            turnMultiplier = 1;
             nextTurnFlag = true;
         }
 
