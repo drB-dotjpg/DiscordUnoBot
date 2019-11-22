@@ -28,10 +28,12 @@ namespace DiscordUnoBot
         bool loggedIn = false;
 
         int turn = 1; //game turn number
+        int playerTurnIndex = 0;
+        bool reverse = false;
 
-		int playerTurnIndex = 0;
+        bool nextTurnFlag = false;
 
-		int timeForTurn = 30; //Seconds to play/draw until your turn is skipped and you are forced to draw a card
+        int timeForTurn = 30; //Seconds to play/draw until your turn is skipped and you are forced to draw a card
 
         List<Player> players = new List<Player>();
 
@@ -121,7 +123,9 @@ namespace DiscordUnoBot
                 }
             }
 
-			Shuffle(players);
+            await message.DeleteAsync();
+
+            Shuffle(players);
             await InGame();
         }
 
@@ -129,63 +133,69 @@ namespace DiscordUnoBot
         {
             phase = Phase.Ingame;
             lastCard = GenerateCard(true);
-			await SendTurnsToPlayers();
-			while (true)
-			{
-				if (HaveAllPlayersPlayed())
-				{
-					foreach(Player player in players)
-					{
-						player.hasGoneThisTurn = false;
-						playerTurnIndex = 0;
-					}
-					turn++;
-					await SendTurnsToPlayers();
-				}
-				while (playerTurnIndex != players.Count)
-				{
-					await AlertPlayerTurn(GetCurrentTurnOrderPlayer());
 
-					int turnTimer = 0;
-					while (!GetCurrentTurnOrderPlayer().hasGoneThisTurn && turnTimer < timeForTurn)
-					{
-						await Task.Delay(1000);
-						turnTimer++;
-					}
-					playerTurnIndex++;
-				}
-			}
-			
+            while (true)
+            {
+                await SendTurnsToPlayers();
+                await AlertPlayerTurn(GetCurrentTurnOrderPlayer());
+
+                int turnTimer = 0;
+                while (!nextTurnFlag && turnTimer < timeForTurn)
+                {
+                    await Task.Delay(1000);
+                    turnTimer++;
+                }
+                StartNextTurn();
+
+                turn++;
+                nextTurnFlag = false;
+            }
         }
 
         async Task SendTurnsToPlayers()
         {
             foreach (Player player in players)
             {
-                EmbedBuilder builder = new EmbedBuilder();
-                builder.WithTitle("Turn " + turn.ToString());
+                EmbedBuilder builder = GetTurnBreifing(player);
+                await (await player.thisUser.GetOrCreateDMChannelAsync() as SocketDMChannel).SendMessageAsync(null, false, builder.Build());
+            }
+        }
 
-                switch (lastCard.color)
-                {
-                    case CardColor.Red:
-                        builder.WithColor(Color.Red); break;
-                    case CardColor.Blue:
-                        builder.WithColor(Color.Blue); break;
-                    case CardColor.Yellow:
-                        builder.WithColor(Color.Gold); break;
-                    case CardColor.Green:
-                        builder.WithColor(Color.Green); break;
-                }
+        EmbedBuilder GetTurnBreifing(Player player, bool withCurrentCard = true, bool withOtherPlayers = true, bool withYourHand = true)
+        {
+            EmbedBuilder builder = new EmbedBuilder();
+            builder.WithTitle("Turn " + turn.ToString());
 
+            switch (lastCard.color)
+            {
+                case CardColor.Red:
+                    builder.WithColor(Color.Red); break;
+                case CardColor.Blue:
+                    builder.WithColor(Color.Blue); break;
+                case CardColor.Yellow:
+                    builder.WithColor(Color.Gold); break;
+                case CardColor.Green:
+                    builder.WithColor(Color.Green); break;
+            }
+
+            if (withCurrentCard)
+            {
                 builder.AddField("CURRENT CARD", CardToString(lastCard));
+            }
 
+            if (withOtherPlayers)
+            {
                 foreach (Player otherPlayer in players)
                 {
-                    if (otherPlayer.Equals(player)) continue;
+                    bool isOtherPlayerTurn = GetCurrentTurnOrderPlayer().thisUser.Equals(otherPlayer);
+                    string nameDisplay = !isOtherPlayerTurn ? otherPlayer.name : "👉 " + otherPlayer.name;
 
-                    builder.AddField(otherPlayer.name, $"Cards: {otherPlayer.Cards.Count}", true);
+                    builder.AddField(nameDisplay, $"Cards: {otherPlayer.Cards.Count}", true);
                 }
+            }
 
+            if (withYourHand)
+            {
                 int index = 1;
                 string hand = "";
                 foreach (Card card in player.Cards)
@@ -195,37 +205,44 @@ namespace DiscordUnoBot
                 }
 
                 builder.AddField("Your hand", hand);
-
-                await (await player.thisUser.GetOrCreateDMChannelAsync() as SocketDMChannel).SendMessageAsync(null, false, builder.Build());
             }
+
+            return builder;
         }
 
         async Task MessageReceived(SocketMessage arg)
         {
             if (arg.Channel is SocketDMChannel && !arg.Author.IsBot)
             {
+                var DM = await arg.Author.GetOrCreateDMChannelAsync() as SocketDMChannel;
                 switch (phase)
                 {
                     case Phase.Pregame:
                         if (!IsPlayerInGame(arg.Author))
                         {
                             players.Add(new Player(arg.Author));
-                            var DM = await arg.Author.GetOrCreateDMChannelAsync() as SocketDMChannel;
                             await DM.SendMessageAsync("You have joined this round of UNO!");
                         }
                         break;
 
                     case Phase.Ingame:
-						if (arg.Content.StartsWith("play"))
-						{
-							//figure out later
-						}
-						if (arg.Content.StartsWith("draw"))
-						{
-							GetCurrentTurnOrderPlayer().DrawCard();
-							GetCurrentTurnOrderPlayer().hasGoneThisTurn = true;
-						}
-						break;
+                        if (arg.Author == GetCurrentTurnOrderPlayer().thisUser)
+                        {
+                            if (arg.Content.StartsWith("play"))
+                            {
+                                //figure out later
+                            }
+                            if (arg.Content.StartsWith("draw"))
+                            {
+                                GetCurrentTurnOrderPlayer().DrawCard();
+                                await DM.SendMessageAsync(null, false, GetTurnBreifing(GetCurrentTurnOrderPlayer(), false, false).Build());
+                            }
+                        }
+                        else
+                        {
+                            await DM.SendMessageAsync("Its not your turn yet!");
+                        }
+                        break;
                 }
             }
         }
@@ -238,32 +255,48 @@ namespace DiscordUnoBot
             return false;
         }
 
-		bool HaveAllPlayersPlayed()
-		{
-			bool allTurnsOver = true;
-			foreach (Player player in players)
-			{
-				if (!player.hasGoneThisTurn)
-				{
-					allTurnsOver = false;
-				}
-			}
+        bool HaveAllPlayersPlayed() //not needed?????
+        {
+            foreach (Player player in players)
+            {
+                if (!player.hasGoneThisTurn)
+                {
+                    return false;
+                }
+            }
 
-			return allTurnsOver;
-		}
+            return true;
+        }
 
-		Player GetCurrentTurnOrderPlayer()
-		{
-			return players[playerTurnIndex];
-		}
+        Player GetCurrentTurnOrderPlayer()
+        {
+            return players[playerTurnIndex];
+        }
 
-		async Task AlertPlayerTurn(Player player)
-		{
-			EmbedBuilder builder = new EmbedBuilder();
-			builder.AddField("Your Turn", "It's your turn! Select a card to play or draw a card.", true);
-			builder.WithColor(Color.Teal);
-			await (await player.thisUser.GetOrCreateDMChannelAsync() as SocketDMChannel).SendMessageAsync("", false, builder.Build());
-		}
+        async Task AlertPlayerTurn(Player player)
+        {
+            EmbedBuilder builder = new EmbedBuilder();
+            builder.WithTitle("It's your turn! Select a card to play or draw a card.");
+            builder.WithFooter($"You have {timeForTurn} seconds to play a card.");
+            builder.WithColor(Color.LightGrey);
+            await (await player.thisUser.GetOrCreateDMChannelAsync() as SocketDMChannel).SendMessageAsync("", false, builder.Build());
+        }
+
+        void StartNextTurn()
+        {
+            playerTurnIndex += !reverse ? 1 : -1;
+
+            if (playerTurnIndex > players.Count - 1)
+            {
+                playerTurnIndex = 0;
+            }
+            else if (playerTurnIndex < 0)
+            {
+                playerTurnIndex = players.Count - 1;
+            }
+
+            nextTurnFlag = true;
+        }
 
         Task Log(LogMessage arg)
         {

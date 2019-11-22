@@ -9,7 +9,7 @@ namespace DiscordUnoBot
         public string name { get; }
         public List<Card> Cards { get; set; } = new List<Card>();
 
-		public bool hasGoneThisTurn = false;
+		public bool hasGoneThisTurn = false; //not needed????
 
         public Player(SocketUser user)
         {
