@@ -90,7 +90,7 @@ namespace DiscordUnoBot
             await channel.DeleteMessagesAsync(messages);
 
             int minutes = 0;
-            int seconds = 8;
+            int seconds = 20;
 
             const string messageContent = "**DM to join bideo gam**";
             var message = await channel.SendMessageAsync(messageContent);
@@ -159,6 +159,7 @@ namespace DiscordUnoBot
 
                 StartNextTurn();
 
+                turnMultiplier = 1;
                 turn++;
                 nextTurnFlag = false;
             }
@@ -199,7 +200,8 @@ namespace DiscordUnoBot
             {
                 foreach (Player otherPlayer in players)
                 {
-                    bool isOtherPlayerTurn = GetCurrentTurnOrderPlayer().thisUser.Equals(otherPlayer);
+                    bool isOtherPlayerTurn = GetCurrentTurnOrderPlayer().Equals(otherPlayer);
+                    Console.WriteLine(isOtherPlayerTurn);
                     string nameDisplay = !isOtherPlayerTurn ? otherPlayer.name : "👉 " + otherPlayer.name;
 
                     builder.AddField(nameDisplay, $"Cards: {otherPlayer.Cards.Count}", true);
