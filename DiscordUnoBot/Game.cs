@@ -138,19 +138,11 @@ namespace DiscordUnoBot
 
             while (true)
             {
-                if (drawMultiplier > 0) //handle draw 2 or 4 momenets
-                {
-                    int drawMulti = drawMultiplier;
-                    while (drawMultiplier > 0)
-                    {
-                        GetCurrentTurnOrderPlayer().DrawCard();
-                        drawMultiplier--;
-                    }
-                    await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), $"You drew {drawMulti} cards.");
-                }
-
                 await SendTurnsToPlayersAsync();
-                await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), "Its your turn! Select a card to play or draw a card.", $"You have {timeForTurn} seconds to play a card.");
+
+                string drawNotif = drawMultiplier > 0 ? $"\nYou will draw {drawMultiplier} at the end of the turn, unless you stack." : "";
+
+                await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), "Its your turn! Select a card to play or draw a card.", $"You have {timeForTurn} seconds to play a card.{drawNotif}");
 
                 int turnTimer = 0;
                 while (!nextTurnFlag && turnTimer < timeForTurn)
@@ -162,7 +154,7 @@ namespace DiscordUnoBot
                         await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), $"You have {timeForTurn - turnTimer} seconds to play a card!");
                 }
 
-                if (turnTimer >= timeForTurn)
+                if (!nextTurnFlag)
                     await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), "You ran out of time!", "Starting next turn");
 
                 StartNextTurn();
@@ -259,17 +251,31 @@ namespace DiscordUnoBot
 
                             if (arg.Content.StartsWith("draw"))
                             {
-                                Card drewCard = GetCurrentTurnOrderPlayer().DrawCard();
+                                List<Card> drewCards = new List<Card>();
 
-                                string playableAlert = IsCardCompatable(drewCard) ? "You can play this card." : null;
+                                if (drawMultiplier == 0) drawMultiplier++;
+                                while (drawMultiplier > 0)
+                                {
+                                    drewCards.Add(GetCurrentTurnOrderPlayer().DrawCard());
+                                    drawMultiplier--;
+                                }
 
-                                await AlertPlayerAsync(user, $"You drew a {CardToString(drewCard)}.", playableAlert);
+                                string playableAlert = IsCardCompatable(drewCards[0]) && drewCards.Count == 1 ? "You can play this card." : null;
+
+                                string cardNames = "";
+                                foreach (Card card in drewCards)
+                                {
+                                    if (cardNames != "") cardNames += ", ";
+                                    cardNames += CardToString(card);
+                                }
+
+                                await AlertPlayerAsync(user, $"You drew a {cardNames}.", playableAlert);
                                 await DM.SendMessageAsync(null, false, GetTurnBreifing(GetCurrentTurnOrderPlayer(), true, false).Build());
 
-                                foreach(Player player in players)
+                                foreach (Player player in players)
                                 {
                                     if (player != user)
-                                        await AlertPlayerAsync(player, $"{user.name} drew a card.", $"{user.name} now has {user.Cards.Count} cards.");
+                                        await AlertPlayerAsync(player, $"{user.name} drew {(drewCards.Count == 1 ? "a card" : drewCards.Count + " cards")}", $"{user.name} now has {user.Cards.Count} cards.");
                                 }
                             }
                         }
@@ -322,6 +328,8 @@ namespace DiscordUnoBot
                     }
                 }
 
+                int prevDrawMulti = drawMultiplier;
+
                 switch (pickedCard.type)
                 {
                     case CardType.Reverse:
@@ -347,6 +355,11 @@ namespace DiscordUnoBot
 
                 lastCard = pickedCard;
                 int cardCount = user.Cards.Count - 1;
+
+                if (prevDrawMulti > 0 && lastCard.type != CardType.DrawTwo && lastCard.type != CardType.WildDrawFour) //account for draw 2 and draw 4
+                {
+                    cardCount += prevDrawMulti;
+                }
 
                 foreach (Player player in players)
                 {
@@ -385,17 +398,32 @@ namespace DiscordUnoBot
 
         bool IsCardCompatable(Card card)
         {
-            if (card.color == CardColor.Any || card.color == lastCard.color) //check colors
+            if (drawMultiplier <= 0) //players that have to draw cards can only play draw2 or wilddraw4 cards to stack it
             {
-                return true;
+                if (card.color == CardColor.Any || card.color == lastCard.color) //check colors
+                {
+                    return true;
+                }
+                else if (card.type == lastCard.type && card.type != CardType.Number) //check types
+                {
+                    return true;
+                }
+                else if (card.type == CardType.Number && card.value == lastCard.value && card.value != 0) //check numbers
+                {
+                    return true;
+                }
+                return false;
             }
-            else if (card.type == lastCard.type && card.type != CardType.Number) //check types
+            else if (card.type == CardType.DrawTwo || card.type == CardType.WildDrawFour || card.type == CardType.Skip)
             {
-                return true;
-            }
-            else if (card.type == CardType.Number && card.value == lastCard.value && card.value != 0) //check numbers
-            {
-                return true;
+                if (card.color == CardColor.Any || card.color == lastCard.color) //check colors
+                {
+                    return true;
+                }
+                else if (card.type == lastCard.type && card.type != CardType.Number) //check types
+                {
+                    return true;
+                }
             }
             return false;
         }
@@ -433,7 +461,7 @@ namespace DiscordUnoBot
 
         Player GetPlayerObject(SocketUser search)
         {
-            foreach(Player player in players)
+            foreach (Player player in players)
             {
                 if (player.thisUser.Equals(search)) return player;
             }

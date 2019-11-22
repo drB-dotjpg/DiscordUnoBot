@@ -15,6 +15,10 @@ namespace DiscordUnoBot
         {
             thisUser = user;
             name = user.Username;
+            Cards.Add(new Card(CardColor.Red, CardType.DrawTwo));
+            Cards.Add(new Card(CardColor.Red, CardType.DrawTwo));
+            Cards.Add(new Card(CardColor.Red, CardType.DrawTwo));
+            Cards.Add(new Card(CardColor.Red, CardType.DrawTwo));
         }
 
 		public Card DrawCard()
