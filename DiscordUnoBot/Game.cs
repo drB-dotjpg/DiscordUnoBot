@@ -31,6 +31,7 @@ namespace DiscordUnoBot
         int playerTurnIndex = 0;
         bool reverse = false;
         int turnMultiplier = 1;
+        int drawMultiplier = 0;
 
         bool nextTurnFlag = false;
 
@@ -137,6 +138,17 @@ namespace DiscordUnoBot
 
             while (true)
             {
+                if (drawMultiplier > 0) //handle draw 2 or 4 momenets
+                {
+                    int drawMulti = drawMultiplier;
+                    while (drawMultiplier > 0)
+                    {
+                        GetCurrentTurnOrderPlayer().DrawCard();
+                        drawMultiplier--;
+                    }
+                    await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), $"You drew {drawMulti} cards.");
+                }
+
                 await SendTurnsToPlayersAsync();
                 await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), "Its your turn! Select a card to play or draw a card.", $"You have {timeForTurn} seconds to play a card.");
 
@@ -320,11 +332,16 @@ namespace DiscordUnoBot
                         turnMultiplier++;
                         break;
 
+                    case CardType.DrawTwo:
+                        drawMultiplier += 2;
+                        break;
+
                     case CardType.Wild:
                         pickedCard = new Card(GetColorFromString(arg.Content.Split()[2].ToLower()), pickedCard.type, pickedCard.value);
                         break;
 
                     case CardType.WildDrawFour:
+                        drawMultiplier += 4;
                         goto case CardType.Wild;
                 }
 

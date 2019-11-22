@@ -49,13 +49,8 @@ namespace DiscordUnoBot
                 output = card.color.ToString() + " " + card.type.ToString();
             }
 
-            for (int i = 1; i < output.Length; i++)
-            {
-                if (char.IsUpper(output.ToCharArray()[i]))
-                {
-                    output.Insert(i, " ");
-                }
-            }
+            output = output.Replace("DrawTwo", "Draw Two");
+            output = output.Replace("WildDrawFour", "Wild Draw Four");
 
             return output;
         }
