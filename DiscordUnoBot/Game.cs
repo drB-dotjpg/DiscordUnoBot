@@ -33,7 +33,7 @@ namespace DiscordUnoBot
 
         bool nextTurnFlag = false;
 
-        int timeForTurn = 30; //Seconds to play/draw until your turn is skipped and you are forced to draw a card
+        int timeForTurn = 60; //Seconds to play/draw until your turn is skipped and you are forced to draw a card
 
         List<Player> players = new List<Player>();
 
@@ -136,15 +136,22 @@ namespace DiscordUnoBot
 
             while (true)
             {
-                await SendTurnsToPlayers();
-                await AlertPlayerTurn(GetCurrentTurnOrderPlayer());
+                await SendTurnsToPlayersAsync();
+                await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), "Its your turn! Select a card to play or draw a card.", $"You have {timeForTurn} seconds to play a card.");
 
                 int turnTimer = 0;
                 while (!nextTurnFlag && turnTimer < timeForTurn)
                 {
                     await Task.Delay(1000);
                     turnTimer++;
+
+                    if (timeForTurn - turnTimer == (int)(timeForTurn / 3))
+                        await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), $"You have {timeForTurn - turnTimer} seconds to play a card!");
                 }
+
+                if (turnTimer >= timeForTurn)
+                    await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), "You ran out of time!", "Starting next turn");
+
                 StartNextTurn();
 
                 turn++;
@@ -152,7 +159,7 @@ namespace DiscordUnoBot
             }
         }
 
-        async Task SendTurnsToPlayers()
+        async Task SendTurnsToPlayersAsync()
         {
             foreach (Player player in players)
             {
@@ -226,16 +233,56 @@ namespace DiscordUnoBot
                         break;
 
                     case Phase.Ingame:
-                        if (arg.Author == GetCurrentTurnOrderPlayer().thisUser)
+                        if (IsPlayerInGame(arg.Author) && arg.Author == GetCurrentTurnOrderPlayer().thisUser)
                         {
+                            Player user = GetPlayerObject(arg.Author);
+
                             if (arg.Content.StartsWith("play"))
                             {
-                                //figure out later
+                                //if the number isn't a number or it out of range goto else statement
+                                if (int.TryParse(arg.Content.Split().Last(), out int index) && index > 0 && index < user.Cards.Count)
+                                {
+                                    index--;
+
+                                    Card pickedCard = user.Cards[index];
+
+                                    if (!IsCardCompatable(pickedCard))
+                                    {
+                                        await AlertPlayerAsync(user, "Invalid card!", "Card must be the same color, type, or number");
+                                        break;
+                                    }
+
+                                    lastCard = pickedCard;
+                                    int cardCount = user.Cards.Count - 1;
+
+                                    foreach (Player player in players)
+                                    {
+                                        await AlertPlayerAsync(player, $"{user.name} played a {CardToString(pickedCard)}", $"{user.name} now has {cardCount} cards.");
+                                        if (user == player)
+                                        {
+                                            player.Cards.RemoveAt(index);
+                                        }
+                                    }
+                                    nextTurnFlag = true;
+                                }
+                                else
+                                {
+                                    await AlertPlayerAsync(user, "Invalid choice");
+                                }
                             }
+
                             if (arg.Content.StartsWith("draw"))
                             {
-                                GetCurrentTurnOrderPlayer().DrawCard();
-                                await DM.SendMessageAsync(null, false, GetTurnBreifing(GetCurrentTurnOrderPlayer(), false, false).Build());
+                                Card drewCard = GetCurrentTurnOrderPlayer().DrawCard();
+
+                                await AlertPlayerAsync(user, $"You drew a {CardToString(drewCard)}.");
+                                await DM.SendMessageAsync(null, false, GetTurnBreifing(GetCurrentTurnOrderPlayer(), true, false).Build());
+
+                                foreach(Player player in players)
+                                {
+                                    if (player != user)
+                                        await AlertPlayerAsync(player, $"{user.name} drew a card.", $"{user.name} now has {user.Cards.Count} cards.");
+                                }
                             }
                         }
                         else
@@ -245,6 +292,23 @@ namespace DiscordUnoBot
                         break;
                 }
             }
+        }
+
+        bool IsCardCompatable(Card card)
+        {
+            if (card.color == CardColor.Any || card.color == lastCard.color) //check colors
+            {
+                return true;
+            }
+            else if (card.type == lastCard.type && card.type != CardType.Number) //check types
+            {
+                return true;
+            }
+            else if (card.type == CardType.Number && card.value == lastCard.value)
+            {
+                return true;
+            }
+            return false;
         }
 
         bool IsPlayerInGame(SocketUser user)
@@ -273,13 +337,31 @@ namespace DiscordUnoBot
             return players[playerTurnIndex];
         }
 
-        async Task AlertPlayerTurn(Player player)
+        async Task AlertPlayerAsync(Player player, string text, string footer = null)
         {
             EmbedBuilder builder = new EmbedBuilder();
-            builder.WithTitle("It's your turn! Select a card to play or draw a card.");
-            builder.WithFooter($"You have {timeForTurn} seconds to play a card.");
+            builder.WithTitle(text);
+            if (footer != null) builder.WithFooter(footer);
             builder.WithColor(Color.LightGrey);
             await (await player.thisUser.GetOrCreateDMChannelAsync() as SocketDMChannel).SendMessageAsync("", false, builder.Build());
+        }
+
+        SocketUser GetDiscordUser(Player search)
+        {
+            foreach (Player player in players)
+            {
+                if (search.Equals(player.thisUser)) return player.thisUser;
+            }
+            return null;
+        }
+
+        Player GetPlayerObject(SocketUser search)
+        {
+            foreach(Player player in players)
+            {
+                if (player.thisUser.Equals(search)) return player;
+            }
+            return null;
         }
 
         void StartNextTurn()

@@ -17,9 +17,11 @@ namespace DiscordUnoBot
             name = user.Username;
         }
 
-		public void DrawCard()
+		public Card DrawCard()
 		{
-			Cards.Add(GenerateCard());
+            Card card = GenerateCard();
+            Cards.Add(card);
+            return card;
 		}
 
 		public void PlayCard(Card card)

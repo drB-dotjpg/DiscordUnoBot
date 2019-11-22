@@ -26,7 +26,7 @@ namespace DiscordUnoBot
 
             if (type == CardType.Number)
             {
-                return new Card(color, type, rand.Next(0, 10));
+                return new Card(color, type, rand.Next(1, 10));
             }
 
             return new Card(color, type);
