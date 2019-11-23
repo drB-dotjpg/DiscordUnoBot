@@ -92,11 +92,11 @@ namespace DiscordUnoBot
             var messages = await channel.GetMessagesAsync().FlattenAsync();
             await channel.DeleteMessagesAsync(messages);
 
-            int minutes = 0;
-            int seconds = 30;
+            int minutes = 3;
+            int seconds = 0;
 
             const string messageContent = "**DM to join bideo gam**";
-            message = await channel.SendMessageAsync(messageContent);
+            message = await channel.SendMessageAsync(messageContent, false, new EmbedBuilder().WithFooter("Created by Jeff and .jpg.\nView our code here: https://github.com/drB-dotjpg/DiscordUnoBot").Build());
 
             do
             {
@@ -108,7 +108,9 @@ namespace DiscordUnoBot
                 foreach (Player player in players) playersDisplay += "`" + player.name + "` ";
                 playersDisplay = players.Count != 0 ? playersDisplay.Trim() : "`No players`";
 
-                await message.ModifyAsync(x => x.Content = $"{messageContent}\n> Time remaining: {time}\n> Players: {playersDisplay}");
+                await message.ModifyAsync(x => x.Content = $"{messageContent}\n" +
+                $"> Time remaining: {time}\n" +
+                $"> Players: {playersDisplay}");
 
                 if (twoOrMore)
                     seconds--;
