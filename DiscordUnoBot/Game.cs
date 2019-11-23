@@ -109,25 +109,25 @@ namespace DiscordUnoBot
 
                 await message.ModifyAsync(x => x.Content = $"{messageContent}\nTime remaining: {time}\nPlayers: {playersDisplay}");
 
-                //if (twoOrMore)
-                seconds--;
-                if (seconds < 0 && minutes > 0)
-                {
-                    minutes--;
-                    seconds += 59;
-                }
-                await Task.Delay(1000);
+				//if (twoOrMore)
+				seconds--;
+				if (seconds < 0 && minutes > 0)
+				{
+					minutes--;
+					seconds += 59;
+				}
+				await Task.Delay(1000);
             } while (seconds > 0);
 
-            foreach (Player player in players)
-            {
-                for (int i = 0; i < 6; i++)
-                {
-                    player.Cards.Add(GenerateCard());
-                }
-            }
+			foreach (Player player in players)
+			{
+				for (int i = 0; i < 6; i++)
+				{
+					player.Cards.Add(GenerateCard());
+				}
+			}
 
-            await message.DeleteAsync();
+			await message.DeleteAsync();
 
             Shuffle(players);
             await InGame();
@@ -161,8 +161,8 @@ namespace DiscordUnoBot
 
 				if(GetCurrentTurnOrderPlayer().Cards.Count == 0)
 				{
-					await PostGame();
 					winningPlayer = GetCurrentTurnOrderPlayer();
+					await PostGame();
 					break;
 				}
 
@@ -283,32 +283,52 @@ namespace DiscordUnoBot
 
                             if (arg.Content.StartsWith("draw"))
                             {
-                                List<Card> drewCards = new List<Card>();
+								bool hasPlayableCards = false;
+								foreach(Card card in GetCurrentTurnOrderPlayer().Cards)
+								{
+									if (IsCardCompatable(card))
+									{
+										hasPlayableCards = true;
+										break;
+									}
+								}
+								if (!hasPlayableCards)
+								{
+									List<Card> drewCards = new List<Card>();
 
-                                if (drawMultiplier == 0) drawMultiplier++;
-                                while (drawMultiplier > 0)
-                                {
-                                    drewCards.Add(GetCurrentTurnOrderPlayer().DrawCard());
-                                    drawMultiplier--;
-                                }
+									if (drawMultiplier == 0) drawMultiplier++;
+									while (drawMultiplier > 0)
+									{
+										drewCards.Add(GetCurrentTurnOrderPlayer().DrawCard());
+										drawMultiplier--;
+									}
 
-                                string playableAlert = IsCardCompatable(drewCards[0]) && drewCards.Count == 1 ? "You can play this card." : null;
+									string playableAlert = IsCardCompatable(drewCards[0]) && drewCards.Count == 1 ? "You can play this card." : null;
 
-                                string cardNames = "";
-                                foreach (Card card in drewCards)
-                                {
-                                    if (cardNames != "") cardNames += ", ";
-                                    cardNames += CardToString(card);
-                                }
+									string cardNames = "";
+									foreach (Card card in drewCards)
+									{
+										if (cardNames != "") cardNames += ", ";
+										cardNames += CardToString(card);
+									}
 
-                                await AlertPlayerAsync(user, $"You drew a {cardNames}.", playableAlert);
-                                await DM.SendMessageAsync(null, false, GetTurnBriefing(GetCurrentTurnOrderPlayer(), true, false).Build());
+									await AlertPlayerAsync(user, $"You drew a {cardNames}.", playableAlert);
+									await DM.SendMessageAsync(null, false, GetTurnBriefing(GetCurrentTurnOrderPlayer(), true, false).Build());
 
-                                foreach (Player player in players)
-                                {
-                                    if (player != user)
-                                        await AlertPlayerAsync(player, $"{user.name} drew {(drewCards.Count == 1 ? "a card" : drewCards.Count + " cards")}", $"{user.name} now has {user.Cards.Count} cards.");
-                                }
+									foreach (Player player in players)
+									{
+										if (player != user)
+											await AlertPlayerAsync(player, $"{user.name} drew {(drewCards.Count == 1 ? "a card" : drewCards.Count + " cards")}", $"{user.name} now has {user.Cards.Count} cards.");
+									}
+									if (!IsCardCompatable(drewCards[0]) || drewCards.Count > 1)
+									{
+										nextTurnFlag = true;
+									}
+								}
+								else
+								{
+									await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), "You have playable cards so you cannot draw!");
+								}
                             }
                         }
                         else
