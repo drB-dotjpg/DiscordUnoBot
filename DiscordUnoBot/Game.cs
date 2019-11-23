@@ -519,6 +519,7 @@ namespace DiscordUnoBot
                 }
                 return false;
             }
+            /*
             else if (card.type == CardType.DrawTwo || card.type == CardType.WildDrawFour || card.type == CardType.Skip)
             {
                 if (card.color == CardColor.Any || card.color == lastCard.color) //check colors
@@ -530,6 +531,7 @@ namespace DiscordUnoBot
                     return true;
                 }
             }
+            */
             return false;
         }
 
