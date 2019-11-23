@@ -23,10 +23,5 @@ namespace DiscordUnoBot
             Cards.Add(card);
             return card;
 		}
-
-		public void PlayCard(Card card)
-		{
-			Game.lastCard = card;
-		}
     }
 }

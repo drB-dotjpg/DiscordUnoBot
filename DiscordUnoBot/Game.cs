@@ -34,6 +34,8 @@ namespace DiscordUnoBot
         int turnMultiplier = 1;
         int drawMultiplier = 0;
 
+		Player winningPlayer;
+
         bool nextTurnFlag = false;
 
         int timeForTurn = 60; //Seconds to play/draw until your turn is skipped and you are forced to draw a card
@@ -118,14 +120,13 @@ namespace DiscordUnoBot
                 await Task.Delay(1000);
             } while (seconds > 0);
 
-            foreach (Player player in players)
-            {
-                for (int i = 0; i < 6; i++)
-                {
-                    player.Cards.Add(GenerateCard());
-                }
-            }
-
+			foreach (Player player in players)
+			{
+				for (int i = 0; i < 6; i++)
+				{
+					player.Cards.Add(GenerateCard());
+				}
+			}
             Shuffle(players);
             await InGame();
         }
@@ -158,6 +159,13 @@ namespace DiscordUnoBot
                 if (!nextTurnFlag)
                     await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), "You ran out of time!", "Starting next turn");
 
+				if(GetCurrentTurnOrderPlayer().Cards.Count == 0)
+				{
+					winningPlayer = GetCurrentTurnOrderPlayer();
+					await PostGame();
+					break;
+				}
+
                 StartNextTurn();
 
                 turnMultiplier = 1;
@@ -166,16 +174,37 @@ namespace DiscordUnoBot
             }
         }
 
+		async Task PostGame()
+		{
+			phase = Phase.PostGame;
+
+			foreach (Player player in players)
+			{
+				if (player == winningPlayer)
+				{
+					await AlertPlayerAsync(player, "You have won! The game is now over.");
+				}
+				else
+				{
+					await AlertPlayerAsync(player, $"{winningPlayer.name} has won the game! The game is now over.");
+				}
+			}
+
+			Restart();
+
+			await PreGame();
+		}
+
         async Task SendTurnsToPlayersAsync()
         {
             foreach (Player player in players)
             {
-                EmbedBuilder builder = GetTurnBreifing(player);
+                EmbedBuilder builder = GetTurnBriefing(player);
                 await (await player.thisUser.GetOrCreateDMChannelAsync() as SocketDMChannel).SendMessageAsync(null, false, builder.Build());
             }
         }
 
-        EmbedBuilder GetTurnBreifing(Player player, bool withCurrentCard = true, bool withOtherPlayers = true, bool withYourHand = true)
+        EmbedBuilder GetTurnBriefing(Player player, bool withCurrentCard = true, bool withOtherPlayers = true, bool withYourHand = true)
         {
             EmbedBuilder builder = new EmbedBuilder();
             builder.WithTitle("Turn " + turn.ToString());
@@ -254,32 +283,52 @@ namespace DiscordUnoBot
 
                             if (arg.Content.StartsWith("draw"))
                             {
-                                List<Card> drewCards = new List<Card>();
+								bool hasPlayableCards = false;
+								foreach(Card card in GetCurrentTurnOrderPlayer().Cards)
+								{
+									if (IsCardCompatable(card))
+									{
+										hasPlayableCards = true;
+										break;
+									}
+								}
+								if (!hasPlayableCards)
+								{
+									List<Card> drewCards = new List<Card>();
 
-                                if (drawMultiplier == 0) drawMultiplier++;
-                                while (drawMultiplier > 0)
-                                {
-                                    drewCards.Add(GetCurrentTurnOrderPlayer().DrawCard());
-                                    drawMultiplier--;
-                                }
+									if (drawMultiplier == 0) drawMultiplier++;
+									while (drawMultiplier > 0)
+									{
+										drewCards.Add(GetCurrentTurnOrderPlayer().DrawCard());
+										drawMultiplier--;
+									}
 
-                                string playableAlert = IsCardCompatable(drewCards[0]) && drewCards.Count == 1 ? "You can play this card." : null;
+									string playableAlert = IsCardCompatable(drewCards[0]) && drewCards.Count == 1 ? "You can play this card." : null;
 
-                                string cardNames = "";
-                                foreach (Card card in drewCards)
-                                {
-                                    if (cardNames != "") cardNames += ", ";
-                                    cardNames += CardToString(card);
-                                }
+									string cardNames = "";
+									foreach (Card card in drewCards)
+									{
+										if (cardNames != "") cardNames += ", ";
+										cardNames += CardToString(card);
+									}
 
-                                await AlertPlayerAsync(user, $"You drew a {cardNames}.", playableAlert);
-                                await DM.SendMessageAsync(null, false, GetTurnBreifing(GetCurrentTurnOrderPlayer(), true, false).Build());
+									await AlertPlayerAsync(user, $"You drew a {cardNames}.", playableAlert);
+									await DM.SendMessageAsync(null, false, GetTurnBriefing(GetCurrentTurnOrderPlayer(), true, false).Build());
 
-                                foreach (Player player in players)
-                                {
-                                    if (player != user)
-                                        await AlertPlayerAsync(player, $"{user.name} drew {(drewCards.Count == 1 ? "a card" : drewCards.Count + " cards")}", $"{user.name} now has {user.Cards.Count} cards.");
-                                }
+									foreach (Player player in players)
+									{
+										if (player != user)
+											await AlertPlayerAsync(player, $"{user.name} drew {(drewCards.Count == 1 ? "a card" : drewCards.Count + " cards")}", $"{user.name} now has {user.Cards.Count} cards.");
+									}
+									if (!IsCardCompatable(drewCards[0]) || drewCards.Count > 1)
+									{
+										nextTurnFlag = true;
+									}
+								}
+								else
+								{
+									await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), "You have playable cards so you cannot draw!");
+								}
                             }
                         }
                         else
@@ -287,6 +336,8 @@ namespace DiscordUnoBot
                             await DM.SendMessageAsync("Its not your turn yet!");
                         }
                         break;
+					case Phase.PostGame:
+						break;
                 }
             }
         }
@@ -492,6 +543,21 @@ namespace DiscordUnoBot
             turnMultiplier = 1;
             nextTurnFlag = true;
         }
+
+		void Restart()
+		{
+			turn = 1; 
+			playerTurnIndex = 0;
+			reverse = false;
+			turnMultiplier = 1;
+			drawMultiplier = 0;
+
+			nextTurnFlag = false;
+
+			players.Clear();
+
+			lastCard = null;
+		}
 
         Task Log(LogMessage arg)
         {
