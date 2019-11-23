@@ -67,5 +67,24 @@ namespace DiscordUnoBot
 				list[n] = value;
 			}
 		}
-	}
+
+        public CardColor GetColorFromString(string color)
+        {
+            switch (color)
+            {
+                case "red":
+                    return CardColor.Red;
+
+                case "blue":
+                    return CardColor.Blue;
+
+                case "yellow":
+                    return CardColor.Yellow;
+
+                case "green":
+                    return CardColor.Green;
+            }
+            return CardColor.Any;
+        }
+    }
 }

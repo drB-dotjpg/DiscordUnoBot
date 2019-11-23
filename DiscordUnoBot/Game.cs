@@ -108,7 +108,7 @@ namespace DiscordUnoBot
                 foreach (Player player in players) playersDisplay += "`" + player.name + "` ";
                 playersDisplay = players.Count != 0 ? playersDisplay.Trim() : "`No players`";
 
-                await message.ModifyAsync(x => x.Content = $"{messageContent}\nTime remaining: {time}\nPlayers: {playersDisplay}");
+                await message.ModifyAsync(x => x.Content = $"{messageContent}\n> Time remaining: {time}\n> Players: {playersDisplay}");
 
                 if (twoOrMore)
                     seconds--;
@@ -281,11 +281,16 @@ namespace DiscordUnoBot
                         if (!IsPlayerInGame(arg.Author))
                         {
                             players.Add(new Player(arg.Author));
-                            await DM.SendMessageAsync("You have joined this round of UNO!" +
-                                "\n**How to play:**" +
-                                "\n`play (card number)` to play a card." +
-                                "\n`draw` to draw a new card." +
-                                "\n`leave` to leave the game.");
+                            await DM.SendMessageAsync("You have joined this round of UNO!\n" +
+                                "\n> __**How to play:**__" +
+                                "\n> `play (card number)` to play a card." +
+                                "\n> `draw` to draw a new card." +
+                                "\n> `leave` to leave the game.");
+                        }
+                        else if (arg.Content.StartsWith("leave"))
+                        {
+                            await HandleLeave(arg);
+                            await DM.SendMessageAsync("You have left this round");
                         }
                         break;
 
@@ -380,9 +385,12 @@ namespace DiscordUnoBot
         async Task HandleLeave(SocketMessage arg)
         {
             string playerName = arg.Author.Username;
+            Player leavingPlayer = null;
 
             foreach(Player player in players)
             {
+                if (phase == Phase.Ingame && players.Count > 0) await AlertPlayerAsync(player, $"{playerName} has left the game.");
+
                 if (player.thisUser == arg.Author)
                 {
                     if (player == GetCurrentTurnOrderPlayer())
@@ -390,11 +398,11 @@ namespace DiscordUnoBot
                         nextTurnFlag = true;
                     }
 
-                    players.Remove(player);
+                    leavingPlayer = player;
                 }
-
-                await AlertPlayerAsync(player, $"{playerName} has left the game.");
             }
+
+            players.Remove(leavingPlayer);
         }
 
         async Task HandleCardPlay(SocketMessage arg, Player user)
@@ -484,25 +492,6 @@ namespace DiscordUnoBot
             {
                 await AlertPlayerAsync(user, "Invalid choice");
             }
-        }
-
-        CardColor GetColorFromString(string color)
-        {
-            switch (color)
-            {
-                case "red":
-                    return CardColor.Red;
-
-                case "blue":
-                    return CardColor.Blue;
-
-                case "yellow":
-                    return CardColor.Yellow;
-
-                case "green":
-                    return CardColor.Green;
-            }
-            return CardColor.Any;
         }
 
         bool IsCardCompatable(Card card)
