@@ -18,6 +18,7 @@ namespace DiscordUnoBot
 
         SocketGuild server;
         SocketTextChannel channel;
+        Discord.Rest.RestUserMessage message;
 
         DiscordSocketClient _client;
         CommandService _commands;
@@ -90,10 +91,10 @@ namespace DiscordUnoBot
             await channel.DeleteMessagesAsync(messages);
 
             int minutes = 0;
-            int seconds = 20;
+            int seconds = 8;
 
             const string messageContent = "**DM to join bideo gam**";
-            var message = await channel.SendMessageAsync(messageContent);
+            message = await channel.SendMessageAsync(messageContent);
 
             do
             {
@@ -125,8 +126,6 @@ namespace DiscordUnoBot
                 }
             }
 
-            await message.DeleteAsync();
-
             Shuffle(players);
             await InGame();
         }
@@ -139,6 +138,8 @@ namespace DiscordUnoBot
             while (true)
             {
                 await SendTurnsToPlayersAsync();
+                await message.ModifyAsync(x => x.Content = "Current Game");
+                await message.ModifyAsync(x => x.Embed = GetTurnBreifing(null, true, true, false).Build());
 
                 string drawNotif = drawMultiplier > 0 ? $"\nYou will draw {drawMultiplier} at the end of the turn, unless you stack." : "";
 
