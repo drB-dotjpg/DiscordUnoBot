@@ -108,8 +108,8 @@ namespace DiscordUnoBot
 
                 await message.ModifyAsync(x => x.Content = $"{messageContent}\nTime remaining: {time}\nPlayers: {playersDisplay}");
 
-                //if (twoOrMore)
-                seconds--;
+                if (twoOrMore)
+                    seconds--;
                 if (seconds < 0 && minutes > 0)
                 {
                     minutes--;
