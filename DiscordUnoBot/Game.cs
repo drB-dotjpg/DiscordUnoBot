@@ -92,8 +92,8 @@ namespace DiscordUnoBot
             var messages = await channel.GetMessagesAsync().FlattenAsync();
             await channel.DeleteMessagesAsync(messages);
 
-            int minutes = 5;
-            int seconds = 0;
+            int minutes = 0;
+            int seconds = 30;
 
             const string messageContent = "**DM to join bideo gam**";
             message = await channel.SendMessageAsync(messageContent);
@@ -202,7 +202,7 @@ namespace DiscordUnoBot
             {
                 await Task.Delay(1000);
                 postGameSeconds--;
-                await message.ModifyAsync(x => x.Content = $"{winningPlayer} has won this round!\n`0:{postGameSeconds.ToString("00")} until next round.");
+                await message.ModifyAsync(x => x.Content = $"{winningPlayer.name} has won this round!\n> `0:{postGameSeconds.ToString("00")}` until next round.");
             } while (postGameSeconds > 0);
 
             Restart();
@@ -308,6 +308,11 @@ namespace DiscordUnoBot
                             {
                                 await HandleCardDraw(arg, DM);
                             }
+
+                            if (arg.Content.StartsWith("leave"))
+                            {
+                                await HandleLeave(arg);
+                            }
                         }
                         else if (arg.Content.StartsWith("leave"))
                         {
@@ -387,7 +392,7 @@ namespace DiscordUnoBot
             string playerName = arg.Author.Username;
             Player leavingPlayer = null;
 
-            foreach(Player player in players)
+            foreach(Player player in players.ToList())
             {
                 if (phase == Phase.Ingame && players.Count > 0) await AlertPlayerAsync(player, $"{playerName} has left the game.");
 
