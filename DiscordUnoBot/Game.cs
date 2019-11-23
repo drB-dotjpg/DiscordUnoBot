@@ -238,7 +238,7 @@ namespace DiscordUnoBot
 
             if (withCurrentCard)
             {
-                builder.AddField("CURRENT CARD", CardToString(lastCard));
+                builder.AddField("CURRENT CARD", $":{lastCard.color.ToString().ToLower()}_circle: {CardToString(lastCard)}");
             }
 
             if (withOtherPlayers)
