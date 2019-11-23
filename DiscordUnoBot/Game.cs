@@ -34,7 +34,7 @@ namespace DiscordUnoBot
         int turnMultiplier = 1;
         int drawMultiplier = 0;
 
-		Player winningPlayer;
+        Player winningPlayer;
 
         bool nextTurnFlag = false;
 
@@ -120,13 +120,13 @@ namespace DiscordUnoBot
                 await Task.Delay(1000);
             } while (seconds > 0 || minutes > 0);
 
-			foreach (Player player in players)
-			{
-				for (int i = 0; i < 6; i++)
-				{
-					player.Cards.Add(GenerateCard());
-				}
-			}
+            foreach (Player player in players)
+            {
+                for (int i = 0; i < 6; i++)
+                {
+                    player.Cards.Add(GenerateCard());
+                }
+            }
             Shuffle(players);
             await InGame();
         }
@@ -159,12 +159,18 @@ namespace DiscordUnoBot
                 if (!nextTurnFlag)
                     await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), "You ran out of time!", "Starting next turn");
 
-				if(GetCurrentTurnOrderPlayer().Cards.Count == 0)
-				{
-					winningPlayer = GetCurrentTurnOrderPlayer();
-					await PostGame();
-					break;
-				}
+                if (GetCurrentTurnOrderPlayer().Cards.Count == 0) //if the player has 0 cards
+                {
+                    winningPlayer = GetCurrentTurnOrderPlayer();
+                    await PostGame();
+                    break;
+                }
+                if (players.Count < 2) //if there are less than 2 players (ie: someone left the game)
+                {
+                    winningPlayer = players.FirstOrDefault();
+                    await PostGame();
+                    break;
+                }
 
                 StartNextTurn();
 
@@ -174,26 +180,35 @@ namespace DiscordUnoBot
             }
         }
 
-		async Task PostGame()
-		{
-			phase = Phase.PostGame;
+        async Task PostGame()
+        {
+            phase = Phase.PostGame;
 
-			foreach (Player player in players)
-			{
-				if (player == winningPlayer)
-				{
-					await AlertPlayerAsync(player, "You have won! The game is now over.");
-				}
-				else
-				{
-					await AlertPlayerAsync(player, $"{winningPlayer.name} has won the game! The game is now over.");
-				}
-			}
+            foreach (Player player in players)
+            {
+                if (player == winningPlayer)
+                {
+                    await AlertPlayerAsync(player, "You have won! The game is now over.");
+                }
+                else
+                {
+                    await AlertPlayerAsync(player, $"{winningPlayer.name} has won the game! The game is now over.");
+                }
+            }
 
-			Restart();
+            int postGameSeconds = 60;
+            await message.ModifyAsync(x => x.Embed = null);
+            do
+            {
+                await Task.Delay(1000);
+                postGameSeconds--;
+                await message.ModifyAsync(x => x.Content = $"{winningPlayer} has won this round!\n`0:{postGameSeconds.ToString("00")} until next round.");
+            } while (postGameSeconds > 0);
 
-			await PreGame();
-		}
+            Restart();
+
+            await PreGame();
+        }
 
         async Task SendTurnsToPlayersAsync()
         {
@@ -269,7 +284,8 @@ namespace DiscordUnoBot
                             await DM.SendMessageAsync("You have joined this round of UNO!" +
                                 "\n**How to play:**" +
                                 "\n`play (card number)` to play a card." +
-                                "\n`draw` to draw a new card");
+                                "\n`draw` to draw a new card." +
+                                "\n`leave` to leave the game.");
                         }
                         break;
 
@@ -285,62 +301,99 @@ namespace DiscordUnoBot
 
                             if (arg.Content.StartsWith("draw"))
                             {
-								bool hasPlayableCards = false;
-								foreach(Card card in GetCurrentTurnOrderPlayer().Cards)
-								{
-									if (IsCardCompatable(card))
-									{
-										hasPlayableCards = true;
-										break;
-									}
-								}
-								if (!hasPlayableCards)
-								{
-									List<Card> drewCards = new List<Card>();
-
-									if (drawMultiplier == 0) drawMultiplier++;
-									while (drawMultiplier > 0)
-									{
-										drewCards.Add(GetCurrentTurnOrderPlayer().DrawCard());
-										drawMultiplier--;
-									}
-
-									string playableAlert = IsCardCompatable(drewCards[0]) && drewCards.Count == 1 ? "You can play this card." : null;
-
-									string cardNames = "";
-									foreach (Card card in drewCards)
-									{
-										if (cardNames != "") cardNames += ", ";
-										cardNames += CardToString(card);
-									}
-
-									await AlertPlayerAsync(user, $"You drew a {cardNames}.", playableAlert);
-									await DM.SendMessageAsync(null, false, GetTurnBriefing(GetCurrentTurnOrderPlayer(), true, false).Build());
-
-									foreach (Player player in players)
-									{
-										if (player != user)
-											await AlertPlayerAsync(player, $"{user.name} drew {(drewCards.Count == 1 ? "a card" : drewCards.Count + " cards")}", $"{user.name} now has {user.Cards.Count} cards.");
-									}
-									if (!IsCardCompatable(drewCards[0]) || drewCards.Count > 1)
-									{
-										nextTurnFlag = true;
-									}
-								}
-								else
-								{
-									await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), "You have playable cards so you cannot draw!");
-								}
+                                await HandleCardDraw(arg, DM);
                             }
+                        }
+                        else if (arg.Content.StartsWith("leave"))
+                        {
+                            await HandleLeave(arg);
                         }
                         else
                         {
                             await DM.SendMessageAsync("Its not your turn yet!");
                         }
                         break;
-					case Phase.PostGame:
-						break;
                 }
+            }
+        }
+
+        async Task HandleCardDraw(SocketMessage arg, SocketDMChannel DM)
+        {
+            Player user = GetPlayerObject(arg.Author);
+
+            if (arg.Content.StartsWith("play"))
+            {
+                await HandleCardPlay(arg, user);
+            }
+
+            if (arg.Content.StartsWith("draw"))
+            {
+                bool hasPlayableCards = false;
+                foreach (Card card in GetCurrentTurnOrderPlayer().Cards)
+                {
+                    if (IsCardCompatable(card))
+                    {
+                        hasPlayableCards = true;
+                        break;
+                    }
+                }
+                if (!hasPlayableCards)
+                {
+                    List<Card> drewCards = new List<Card>();
+
+                    if (drawMultiplier == 0) drawMultiplier++;
+                    while (drawMultiplier > 0)
+                    {
+                        drewCards.Add(GetCurrentTurnOrderPlayer().DrawCard());
+                        drawMultiplier--;
+                    }
+
+                    string playableAlert = IsCardCompatable(drewCards[0]) && drewCards.Count == 1 ? "You can play this card." : null;
+
+                    string cardNames = "";
+                    foreach (Card card in drewCards)
+                    {
+                        if (cardNames != "") cardNames += ", ";
+                        cardNames += CardToString(card);
+                    }
+
+                    await AlertPlayerAsync(user, $"You drew a {cardNames}.", playableAlert);
+                    await DM.SendMessageAsync(null, false, GetTurnBriefing(GetCurrentTurnOrderPlayer(), true, false).Build());
+
+                    foreach (Player player in players)
+                    {
+                        if (player != user)
+                            await AlertPlayerAsync(player, $"{user.name} drew {(drewCards.Count == 1 ? "a card" : drewCards.Count + " cards")}", $"{user.name} now has {user.Cards.Count} cards.");
+                    }
+                    if (!IsCardCompatable(drewCards[0]) || drewCards.Count > 1)
+                    {
+                        nextTurnFlag = true;
+                    }
+                }
+                else
+                {
+                    await AlertPlayerAsync(GetCurrentTurnOrderPlayer(), "You have playable cards so you cannot draw!");
+                }
+            }
+        }
+
+        async Task HandleLeave(SocketMessage arg)
+        {
+            string playerName = arg.Author.Username;
+
+            foreach(Player player in players)
+            {
+                if (player.thisUser == arg.Author)
+                {
+                    if (player == GetCurrentTurnOrderPlayer())
+                    {
+                        nextTurnFlag = true;
+                    }
+
+                    players.Remove(player);
+                }
+
+                await AlertPlayerAsync(player, $"{playerName} has left the game.");
             }
         }
 
@@ -506,15 +559,6 @@ namespace DiscordUnoBot
             await (await player.thisUser.GetOrCreateDMChannelAsync() as SocketDMChannel).SendMessageAsync("", false, builder.Build());
         }
 
-        SocketUser GetDiscordUser(Player search)
-        {
-            foreach (Player player in players)
-            {
-                if (search.Equals(player.thisUser)) return player.thisUser;
-            }
-            return null;
-        }
-
         Player GetPlayerObject(SocketUser search)
         {
             foreach (Player player in players)
@@ -546,20 +590,20 @@ namespace DiscordUnoBot
             nextTurnFlag = true;
         }
 
-		void Restart()
-		{
-			turn = 1; 
-			playerTurnIndex = 0;
-			reverse = false;
-			turnMultiplier = 1;
-			drawMultiplier = 0;
+        void Restart()
+        {
+            turn = 1;
+            playerTurnIndex = 0;
+            reverse = false;
+            turnMultiplier = 1;
+            drawMultiplier = 0;
 
-			nextTurnFlag = false;
+            nextTurnFlag = false;
 
-			players.Clear();
+            players.Clear();
 
-			lastCard = null;
-		}
+            lastCard = null;
+        }
 
         Task Log(LogMessage arg)
         {
