@@ -92,8 +92,8 @@ namespace DiscordUnoBot
             var messages = await channel.GetMessagesAsync().FlattenAsync();
             await channel.DeleteMessagesAsync(messages);
 
-            int minutes = 0;
-            int seconds = 8;
+            int minutes = 5;
+            int seconds = 0;
 
             const string messageContent = "**DM to join bideo gam**";
             message = await channel.SendMessageAsync(messageContent);
@@ -118,7 +118,7 @@ namespace DiscordUnoBot
                     seconds += 59;
                 }
                 await Task.Delay(1000);
-            } while (seconds > 0);
+            } while (seconds > 0 || minutes > 0);
 
 			foreach (Player player in players)
 			{
@@ -140,7 +140,7 @@ namespace DiscordUnoBot
             {
                 await SendTurnsToPlayersAsync();
                 await message.ModifyAsync(x => x.Content = "Current Game");
-                await message.ModifyAsync(x => x.Embed = GetTurnBreifing(null, true, true, false).Build());
+                await message.ModifyAsync(x => x.Embed = GetTurnBriefing(null, true, true, false).Build());
 
                 string drawNotif = drawMultiplier > 0 ? $"\nYou will draw {drawMultiplier} at the end of the turn, unless you stack." : "";
 
@@ -231,7 +231,6 @@ namespace DiscordUnoBot
                 foreach (Player otherPlayer in players)
                 {
                     bool isOtherPlayerTurn = GetCurrentTurnOrderPlayer().Equals(otherPlayer);
-                    Console.WriteLine(isOtherPlayerTurn);
                     string nameDisplay = !isOtherPlayerTurn ? otherPlayer.name : "👉 " + otherPlayer.name;
 
                     builder.AddField(nameDisplay, $"Cards: {otherPlayer.Cards.Count}", true);
@@ -267,7 +266,10 @@ namespace DiscordUnoBot
                         if (!IsPlayerInGame(arg.Author))
                         {
                             players.Add(new Player(arg.Author));
-                            await DM.SendMessageAsync("You have joined this round of UNO!");
+                            await DM.SendMessageAsync("You have joined this round of UNO!" +
+                                "\n**How to play:**" +
+                                "\n`play (card number)` to play a card." +
+                                "\n`draw` to draw a new card");
                         }
                         break;
 
