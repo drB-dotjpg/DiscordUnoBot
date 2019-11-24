@@ -8,8 +8,7 @@ namespace DiscordUnoBot
         public SocketUser thisUser { get; }
         public string name { get; }
         public List<Card> Cards { get; set; } = new List<Card>();
-
-		public bool hasGoneThisTurn = false; //not needed????
+        public int afkSkips { get; set; } = 0; 
 
         public Player(SocketUser user)
         {
