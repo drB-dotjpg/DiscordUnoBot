@@ -198,19 +198,18 @@ namespace DiscordUnoBot
                 }
             }
 
-            //int postGameSeconds = 60;
-            //await message.ModifyAsync(x => x.Embed = null);
-            //do
-            //{
-            //    await Task.Delay(1000);
-            //    postGameSeconds--;
-            //    await message.ModifyAsync(x => x.Content = $"{winningPlayer.name} has won this round!\n> `0:{postGameSeconds.ToString("00")}` until next round.");
-            //} while (postGameSeconds > 0);
+            int postGameSeconds = 60;
+            await message.ModifyAsync(x => x.Embed = null);
+            do
+            {
+                await Task.Delay(1000);
+                postGameSeconds--;
+                await message.ModifyAsync(x => x.Content = $"{winningPlayer.name} has won this round!\n> `0:{postGameSeconds.ToString("00")}` until next round.");
+            } while (postGameSeconds > 0);
 
-			Environment.Exit(1);
-            //Restart();
+            Restart();
 
-            //await PreGame();
+            await PreGame();
         }
 
         async Task SendTurnsToPlayersAsync()
@@ -602,6 +601,8 @@ namespace DiscordUnoBot
             players.Clear();
 
             lastCard = null;
+
+            phase = Phase.Pregame;
         }
 
         Task Log(LogMessage arg)
